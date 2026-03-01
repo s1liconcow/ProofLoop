@@ -1,5 +1,5 @@
 [project]
-name = "auto-optimize-spec"
+name = "proofloop"
 version = "0.1.0"
 description = "Schema and typed models for multi-agent verifiable optimization jobs"
 requires-python = ">=3.10"
@@ -10,7 +10,16 @@ dependencies = [
   "docker>=7.1.0",
 ]
 
+[project.optional-dependencies]
+test = [
+  "pytest>=8.0",
+  "black>=24.0",
+]
+
 [project.scripts]
+proofloop-validate = "auto_optimize_spec.validate:main"
+proofloop-run = "auto_optimize_spec.run_job:main"
+# Backward-compatible aliases
 auto-optimize-validate = "auto_optimize_spec.validate:main"
 auto-optimize-run = "auto_optimize_spec.run_job:main"
 

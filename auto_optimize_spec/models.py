@@ -80,9 +80,9 @@ class VerificationSpec(BaseModel):
 
 class ScoringSpec(BaseModel):
     mode: Literal["maximize", "minimize", "composite"] = "composite"
-    builtins: List[Literal["runtime", "compute", "agent_cost", "pass_rate", "memory", "energy"]] = Field(
-        default_factory=list
-    )
+    builtins: List[
+        Literal["runtime", "compute", "agent_cost", "pass_rate", "memory", "energy"]
+    ] = Field(default_factory=list)
     formula: Optional[str] = None
     weights: Dict[str, float] = Field(default_factory=dict)
     tie_breakers: List[str] = Field(default_factory=list)
@@ -92,7 +92,14 @@ class ProblemSpec(BaseModel):
     id: str
     title: str
     description: Optional[str] = None
-    domain: Literal["software-performance", "legacy-porting", "algorithms", "robotics", "ml", "other"] = "other"
+    domain: Literal[
+        "software-performance",
+        "legacy-porting",
+        "algorithms",
+        "robotics",
+        "ml",
+        "other",
+    ] = "other"
     goal: str
     baseline: Optional[BaselineSpec] = None
     constraints: List[str] = Field(default_factory=list)
@@ -135,7 +142,9 @@ class ProviderPricingSpec(BaseModel):
 
 class ProviderSpec(BaseModel):
     id: str
-    type: Literal["openai", "anthropic", "google", "azure_openai", "bedrock", "ollama", "custom"]
+    type: Literal[
+        "openai", "anthropic", "google", "azure_openai", "bedrock", "ollama", "custom"
+    ]
     endpoint: Optional[str] = None
     api_key_env: Optional[str] = None
     models: List[ProviderModelSpec]
@@ -144,7 +153,9 @@ class ProviderSpec(BaseModel):
 
 class AgentSpec(BaseModel):
     class AgentRuntimeSpec(BaseModel):
-        type: Literal["internal_mock", "claude_code", "codex", "opencode"] = "internal_mock"
+        type: Literal["internal_mock", "claude_code", "codex", "opencode"] = (
+            "internal_mock"
+        )
         executable: Optional[str] = None
         args: List[str] = Field(default_factory=list)
         prompt_mode: Literal["stdin", "arg"] = "stdin"
@@ -157,9 +168,13 @@ class AgentSpec(BaseModel):
     provider_id: Optional[str] = None
     model: Optional[str] = None
     runtime: Optional[AgentRuntimeSpec] = None
-    strategy: Literal["explore", "exploit", "balanced", "adversarial", "custom"] = "balanced"
+    strategy: Literal["explore", "exploit", "balanced", "adversarial", "custom"] = (
+        "balanced"
+    )
     max_iterations: int = 4
-    tooling: List[Literal["shell", "python", "git", "web", "simulator", "custom"]] = Field(default_factory=list)
+    tooling: List[Literal["shell", "python", "git", "web", "simulator", "custom"]] = (
+        Field(default_factory=list)
+    )
     prompt_overrides: Optional[PromptTemplate] = None
 
 
@@ -189,12 +204,16 @@ class OrchestratorSpec(BaseModel):
     selection_policy: Literal["best_score", "first_pass", "pareto"] = "best_score"
     retry_policy: Literal["on_fail", "on_low_score", "never"] = "on_fail"
     max_total_attempts: int = 100
-    feedback_mode: Literal["full_verifier_output", "summary_only", "redacted"] = "summary_only"
+    feedback_mode: Literal["full_verifier_output", "summary_only", "redacted"] = (
+        "summary_only"
+    )
 
 
 class ReportingSpec(BaseModel):
     output_dir: Optional[str] = None
-    emit: List[Literal["json", "html", "junit", "csv", "trace"]] = Field(default_factory=list)
+    emit: List[Literal["json", "html", "junit", "csv", "trace"]] = Field(
+        default_factory=list
+    )
     store_agent_transcripts: bool = True
 
 
@@ -206,4 +225,6 @@ class OptimizationJob(BaseModel):
     runner: RunnerSpec
     orchestrator: Optional[OrchestratorSpec] = None
     reporting: Optional[ReportingSpec] = None
-    metadata: Dict[str, Union[str, int, float, bool, None]] = Field(default_factory=dict)
+    metadata: Dict[str, Union[str, int, float, bool, None]] = Field(
+        default_factory=dict
+    )

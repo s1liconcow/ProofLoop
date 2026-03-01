@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+if [ -x "venv/bin/python" ]; then
+  source venv/bin/activate
+elif [ -x ".venv/bin/python" ]; then
+  source .venv/bin/activate
+fi
+
+if ! command -v black >/dev/null 2>&1; then
+  echo "black not found. Install with: pip install black"
+  exit 1
+fi
+
+if ! command -v pytest >/dev/null 2>&1; then
+  echo "pytest not found. Install with: pip install pytest"
+  exit 1
+fi
+
+echo "[pre-commit] Running black --check auto_optimize_spec tests scripts"
+black --check auto_optimize_spec tests scripts
+
+echo "[pre-commit] Running pytest -q tests"
+pytest -q tests

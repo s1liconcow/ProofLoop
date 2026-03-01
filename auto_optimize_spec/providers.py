@@ -41,9 +41,13 @@ class MockProviderClient(BaseProviderClient):
         if feedback:
             base += f" Feedback considered: {feedback[:180]}"
         # Token estimates are placeholders used for agent-cost accounting in skeleton mode.
-        input_tokens = max(200, len(problem.goal) + len(agent.persona) + (len(feedback or "") // 2))
+        input_tokens = max(
+            200, len(problem.goal) + len(agent.persona) + (len(feedback or "") // 2)
+        )
         output_tokens = max(120, len(base) // 2)
-        return AgentDraft(summary=base, input_tokens=input_tokens, output_tokens=output_tokens)
+        return AgentDraft(
+            summary=base, input_tokens=input_tokens, output_tokens=output_tokens
+        )
 
 
 class UnsupportedProviderClient(BaseProviderClient):

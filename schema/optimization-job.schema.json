@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://auto-optimize.dev/schema/optimization-job.schema.json",
+  "$id": "https://proofloop.dev/schema/optimization-job.schema.json",
   "title": "Auto Optimize Job",
   "description": "Top-level spec for optimization jobs solved by multiple LLM agents in ephemeral environments.",
   "type": "object",

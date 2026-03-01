@@ -81,7 +81,7 @@ For external runtimes, set per-agent runtime config:
 
 `runner` is where agent attempts execute (Docker/Kubernetes/local/remote/custom). `ephemeral=true` is the default for isolation. Resource limits and network policy are first-class.
 
-For `runner.type: docker`, set `runner.image` to the verification image tag (for example, `auto-optimize/devperf:latest`). Verification commands run inside that container via the Python Docker SDK.
+For `runner.type: docker`, set `runner.image` to the verification image tag (for example, `proofloop/devperf:latest`). Verification commands run inside that container via the Python Docker SDK.
 
 ## Files
 

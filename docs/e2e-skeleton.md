@@ -1,6 +1,6 @@
 # E2E Skeleton Runner
 
-`auto-optimize-run` executes a full skeleton flow:
+`proofloop-run` executes a full skeleton flow:
 
 - load + validate config using Pydantic models
 - select single problem or problem set
@@ -11,19 +11,20 @@
 - evaluate pass condition
 - compute score (formula or builtin fallback)
 - persist each attempt workspace under `runs/.../attempts/...`
+  - persistence is delta-based (only files changed vs base snapshot + manifest)
 - persist each external-agent stdout/stderr log under `runs/.../agent-logs/...`
 - emit run report JSON
 
 ## Command
 
 ```bash
-auto-optimize-run examples/legacy-port-tinyxml2.yaml
+proofloop-run examples/legacy-port-tinyxml2.yaml
 ```
 
 Optional output path:
 
 ```bash
-auto-optimize-run examples/legacy-port-tinyxml2.yaml --output-dir runs/demo
+proofloop-run examples/legacy-port-tinyxml2.yaml --output-dir runs/demo
 ```
 
 ## Current limitations (intentional skeleton)
@@ -34,3 +35,7 @@ auto-optimize-run examples/legacy-port-tinyxml2.yaml --output-dir runs/demo
 - runner executes locally in ephemeral directories (Docker/K8s orchestration adapter pending)
 
 Despite this, the orchestration loop, verification, scoring, retries, reporting, and workspace retention are end-to-end functional.
+
+When `runner.type: docker`, both agent runtime commands and verifier commands execute inside the configured Docker image against the mounted attempt workspace.
+
+The provided `docker/devperf/Dockerfile` installs `opencode`, `claude`, and `codex` so external agent runtimes can execute in-container.

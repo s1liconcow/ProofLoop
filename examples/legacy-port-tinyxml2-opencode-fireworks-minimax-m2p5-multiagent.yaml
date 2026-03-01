@@ -86,7 +86,7 @@ agents:
         and parser optimization literature. Explain why each optimization should help.
 runner:
   type: docker
-  image: auto-optimize/devperf:latest
+  image: proofloop/devperf:latest
   ephemeral: true
   parallelism: 3
   resource_limits:

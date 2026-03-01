@@ -11,7 +11,9 @@ from auto_optimize_spec.runtime import load_data
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate optimization job config against schema and Pydantic model")
+    parser = argparse.ArgumentParser(
+        description="Validate optimization job config against schema and Pydantic model"
+    )
     parser.add_argument("config", type=Path, help="Path to YAML/JSON job config")
     parser.add_argument(
         "--schema",

@@ -1,4 +1,4 @@
-# auto-optimize-spec
+# proofloop
 
 Schema and typed Python models for defining verifiable optimization jobs executed by multi-agent LLM systems.
 
@@ -31,6 +31,6 @@ Schema and typed Python models for defining verifiable optimization jobs execute
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
-auto-optimize-validate examples/single-problem.yaml
-auto-optimize-run examples/legacy-port-tinyxml2.yaml
+proofloop-validate examples/single-problem.yaml
+proofloop-run examples/legacy-port-tinyxml2.yaml
 ```
