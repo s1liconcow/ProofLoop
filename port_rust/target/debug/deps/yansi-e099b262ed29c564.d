@@ -1,0 +1,14 @@
+/home/david/projects/auto-optimize/port_rust/target/debug/deps/yansi-e099b262ed29c564.d: /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/lib.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/macros.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/windows.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/attr_quirk.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/style.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/color.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/paint.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/global.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/condition.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/set.rs
+
+/home/david/projects/auto-optimize/port_rust/target/debug/deps/libyansi-e099b262ed29c564.rmeta: /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/lib.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/macros.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/windows.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/attr_quirk.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/style.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/color.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/paint.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/global.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/condition.rs /home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/set.rs
+
+/home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/lib.rs:
+/home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/macros.rs:
+/home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/windows.rs:
+/home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/attr_quirk.rs:
+/home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/style.rs:
+/home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/color.rs:
+/home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/paint.rs:
+/home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/global.rs:
+/home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/condition.rs:
+/home/david/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yansi-1.0.1/src/set.rs:

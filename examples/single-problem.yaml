@@ -1,0 +1,106 @@
+schema_version: v1
+job:
+  id: perf-json-parser
+  name: Optimize JSON parser throughput
+  environment:
+    dockerfile:
+      path: ./Dockerfile
+    artifacts:
+      - name: src
+        path: ./workspace
+        mount_to: /work
+        type: codebase
+      - name: benchmark-data
+        path: ./benchmarks/data
+        mount_to: /bench-data
+        type: dataset
+  target:
+    id: json-parser-p95
+    title: Reduce p95 latency in parser
+    domain: software-performance
+    goal: Keep correctness while reducing p95 latency by 30%.
+    baseline:
+      metrics:
+        runtime_ms_p95: 182.0
+    constraints:
+      - Must pass all existing tests.
+      - Python version stays at 3.11.
+    input_contract:
+      format: files
+    output_contract:
+      format: patch
+      required_paths:
+        - src/
+    verification:
+      type: command
+      command: "pytest -q && python benchmarks/run.py --json /tmp/metrics.json"
+      pass_condition: "tests_passed == true && runtime_ms_p95 <= 127.4"
+      collect_metrics:
+        - name: tests_passed
+          source: verifier
+          type: boolean
+        - name: runtime_ms_p95
+          source: verifier
+          type: number
+          unit: ms
+        - name: cpu_seconds
+          source: runner
+          type: number
+          unit: s
+    scoring:
+      mode: composite
+      builtins: [runtime, compute, agent_cost]
+      formula: "0.6*norm(runtime_ms_p95) + 0.2*norm(cpu_seconds) + 0.2*norm(agent_cost_usd)"
+      tie_breakers: ["tests_passed", "runtime_ms_p95"]
+    prompt_template:
+      system: |
+        You are a performance optimization specialist.
+        Improve code while preserving behavior.
+  global_prompt_template:
+    system: |
+      Return minimal, correct changes and explain tradeoffs.
+providers:
+  - id: openai-main
+    type: openai
+    api_key_env: OPENAI_API_KEY
+    models:
+      - name: gpt-5
+        temperature: 0.2
+    pricing:
+      input_token_usd_per_million: 2.0
+      output_token_usd_per_million: 8.0
+agents:
+  - id: perf-hacker
+    persona: Aggressive micro-optimizer focused on runtime.
+    provider_id: openai-main
+    model: gpt-5
+    strategy: explore
+    tooling: [shell, python, git]
+    max_iterations: 5
+  - id: safety-engineer
+    persona: Conservative reliability engineer focused on correctness.
+    provider_id: openai-main
+    model: gpt-5
+    strategy: exploit
+    tooling: [shell, python, git]
+runner:
+  type: docker
+  ephemeral: true
+  parallelism: 4
+  resource_limits:
+    cpu: "4"
+    memory: "8Gi"
+    timeout_seconds: 1800
+  network_policy: allowlist
+orchestrator:
+  selection_policy: best_score
+  retry_policy: on_fail
+  max_total_attempts: 24
+  feedback_mode: summary_only
+reporting:
+  output_dir: ./runs/perf-json-parser
+  emit: [json, html, trace]
+  store_agent_transcripts: true
+metadata:
+  owner: platform-opt
+  priority: high

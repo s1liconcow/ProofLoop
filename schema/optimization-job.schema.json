@@ -1,0 +1,502 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auto-optimize.dev/schema/optimization-job.schema.json",
+  "title": "Auto Optimize Job",
+  "description": "Top-level spec for optimization jobs solved by multiple LLM agents in ephemeral environments.",
+  "type": "object",
+  "required": ["schema_version", "job", "agents", "runner"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^v[0-9]+(\\.[0-9]+)?$",
+      "examples": ["v1"]
+    },
+    "job": { "$ref": "#/$defs/JobSpec" },
+    "agents": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/AgentSpec" }
+    },
+    "providers": {
+      "type": "array",
+      "minItems": 0,
+      "items": { "$ref": "#/$defs/ProviderSpec" }
+    },
+    "runner": { "$ref": "#/$defs/RunnerSpec" },
+    "orchestrator": { "$ref": "#/$defs/OrchestratorSpec" },
+    "reporting": { "$ref": "#/$defs/ReportingSpec" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": { "type": ["string", "number", "boolean", "null"] }
+    }
+  },
+  "$defs": {
+    "RefId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+    },
+    "PromptTemplate": {
+      "type": "object",
+      "required": ["system"],
+      "additionalProperties": false,
+      "properties": {
+        "system": { "type": "string", "minLength": 1 },
+        "developer": { "type": "string" },
+        "user_prefix": { "type": "string" },
+        "variables": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number", "boolean"] }
+        }
+      }
+    },
+    "EnvironmentInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dockerfile": { "$ref": "#/$defs/FileRef" },
+        "base_image": { "type": "string" },
+        "artifacts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ArtifactRef" }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "setup_commands": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "FileRef": {
+      "type": "object",
+      "required": ["path"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" }
+      }
+    },
+    "ArtifactRef": {
+      "type": "object",
+      "required": ["name", "path", "mount_to"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/RefId" },
+        "path": { "type": "string", "minLength": 1 },
+        "mount_to": { "type": "string", "minLength": 1 },
+        "read_only": { "type": "boolean", "default": true },
+        "type": {
+          "type": "string",
+          "enum": ["dataset", "codebase", "binary", "config", "other"],
+          "default": "other"
+        }
+      }
+    },
+    "ProblemSpec": {
+      "type": "object",
+      "required": ["id", "title", "goal", "input_contract", "output_contract", "verification"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/RefId" },
+        "title": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "domain": {
+          "type": "string",
+          "enum": ["software-performance", "legacy-porting", "algorithms", "robotics", "ml", "other"],
+          "default": "other"
+        },
+        "goal": { "type": "string", "minLength": 1 },
+        "baseline": { "$ref": "#/$defs/BaselineSpec" },
+        "constraints": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "input_contract": { "$ref": "#/$defs/InputContract" },
+        "output_contract": { "$ref": "#/$defs/OutputContract" },
+        "verification": { "$ref": "#/$defs/VerificationSpec" },
+        "scoring": { "$ref": "#/$defs/ScoringSpec" },
+        "prompt_template": { "$ref": "#/$defs/PromptTemplate" },
+        "time_budget_seconds": { "type": "integer", "minimum": 1 },
+        "max_attempts_per_agent": { "type": "integer", "minimum": 1, "default": 4 }
+      }
+    },
+    "BaselineSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": { "type": "string" },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        }
+      }
+    },
+    "InputContract": {
+      "type": "object",
+      "required": ["format"],
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": ["stdin", "files", "http", "simulator", "custom"]
+        },
+        "schema": {
+          "description": "Optional JSON schema for expected input payload.",
+          "type": "object"
+        },
+        "examples": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "OutputContract": {
+      "type": "object",
+      "required": ["format"],
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": ["patch", "command", "file_bundle", "text", "json", "custom"]
+        },
+        "required_paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "schema": {
+          "description": "Optional JSON schema for structured outputs.",
+          "type": "object"
+        }
+      }
+    },
+    "VerificationSpec": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["command", "test_suite", "script", "simulator", "api_call", "custom"]
+        },
+        "pass_condition": {
+          "type": "string",
+          "description": "Boolean expression over metrics (e.g., tests_passed == true && runtime_ms < 200)."
+        },
+        "collect_metrics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MetricSpec" }
+        },
+        "timeout_seconds": { "type": "integer", "minimum": 1, "default": 600 },
+        "retries": { "type": "integer", "minimum": 0, "default": 0 },
+        "command": { "type": "string" },
+        "script": { "$ref": "#/$defs/FileRef" },
+        "simulator": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "entrypoint": { "type": "string" },
+            "config": { "type": "object" }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "command" } } },
+          "then": { "required": ["command"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "script" } } },
+          "then": { "required": ["script"] }
+        }
+      ]
+    },
+    "MetricSpec": {
+      "type": "object",
+      "required": ["name", "source", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/RefId" },
+        "source": {
+          "type": "string",
+          "enum": ["verifier", "runner", "provider", "agent", "custom"]
+        },
+        "type": {
+          "type": "string",
+          "enum": ["number", "boolean", "string"]
+        },
+        "unit": { "type": "string" },
+        "required": { "type": "boolean", "default": true }
+      }
+    },
+    "ScoringSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["maximize", "minimize", "composite"],
+          "default": "composite"
+        },
+        "builtins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["runtime", "compute", "agent_cost", "pass_rate", "memory", "energy"]
+          }
+        },
+        "formula": {
+          "type": "string",
+          "description": "Expression over metrics and builtin components, e.g. 0.6*norm(runtime_ms) + 0.2*norm(cpu_seconds) + 0.2*norm(agent_cost_usd)."
+        },
+        "weights": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "tie_breakers": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "ProblemSetSpec": {
+      "type": "object",
+      "required": ["id", "selection", "problems"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/RefId" },
+        "selection": {
+          "type": "string",
+          "enum": ["all", "sample", "top_k"]
+        },
+        "sample_size": { "type": "integer", "minimum": 1 },
+        "top_k": { "type": "integer", "minimum": 1 },
+        "aggregate_scoring": { "$ref": "#/$defs/ScoringSpec" },
+        "problems": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/ProblemSpec" }
+        }
+      }
+    },
+    "JobSpec": {
+      "type": "object",
+      "required": ["id", "name", "target"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/RefId" },
+        "name": { "type": "string", "minLength": 1 },
+        "target": {
+          "oneOf": [
+            { "$ref": "#/$defs/ProblemSpec" },
+            { "$ref": "#/$defs/ProblemSetSpec" }
+          ]
+        },
+        "environment": { "$ref": "#/$defs/EnvironmentInput" },
+        "global_prompt_template": { "$ref": "#/$defs/PromptTemplate" }
+      }
+    },
+    "ProviderSpec": {
+      "type": "object",
+      "required": ["id", "type", "models"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/RefId" },
+        "type": {
+          "type": "string",
+          "enum": ["openai", "anthropic", "google", "azure_openai", "bedrock", "ollama", "custom"]
+        },
+        "endpoint": { "type": "string" },
+        "api_key_env": { "type": "string" },
+        "models": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "max_tokens": { "type": "integer", "minimum": 1 },
+              "temperature": { "type": "number", "minimum": 0, "maximum": 2 }
+            }
+          }
+        },
+        "pricing": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "input_token_usd_per_million": { "type": "number", "minimum": 0 },
+            "output_token_usd_per_million": { "type": "number", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "AgentSpec": {
+      "type": "object",
+      "required": ["id", "persona"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/RefId" },
+        "persona": { "type": "string", "minLength": 1 },
+        "provider_id": { "$ref": "#/$defs/RefId" },
+        "model": { "type": "string", "minLength": 1 },
+        "runtime": { "$ref": "#/$defs/AgentRuntimeSpec" },
+        "strategy": {
+          "type": "string",
+          "enum": ["explore", "exploit", "balanced", "adversarial", "custom"],
+          "default": "balanced"
+        },
+        "max_iterations": { "type": "integer", "minimum": 1, "default": 4 },
+        "tooling": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["shell", "python", "git", "web", "simulator", "custom"]
+          }
+        },
+        "prompt_overrides": { "$ref": "#/$defs/PromptTemplate" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "runtime": {
+                "properties": {
+                  "type": { "enum": ["claude_code", "codex", "opencode"] }
+                },
+                "required": ["type"]
+              }
+            }
+          },
+          "then": {}
+        },
+        {
+          "if": {
+            "properties": {
+              "runtime": {
+                "properties": {
+                  "type": { "const": "internal_mock" }
+                },
+                "required": ["type"]
+              }
+            }
+          },
+          "then": { "required": ["provider_id", "model"] }
+        },
+        {
+          "if": {
+            "not": {
+              "required": ["runtime"]
+            }
+          },
+          "then": { "required": ["provider_id", "model"] }
+        }
+      ]
+    },
+    "AgentRuntimeSpec": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["internal_mock", "claude_code", "codex", "opencode"]
+        },
+        "executable": { "type": "string", "minLength": 1 },
+        "args": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "prompt_mode": {
+          "type": "string",
+          "enum": ["stdin", "arg"],
+          "default": "stdin"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "timeout_seconds": { "type": "integer", "minimum": 1, "default": 900 },
+        "prompt_template": { "type": "string" }
+      }
+    },
+    "RunnerSpec": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["docker", "kubernetes", "local", "remote", "custom"]
+        },
+        "ephemeral": { "type": "boolean", "default": true },
+        "parallelism": { "type": "integer", "minimum": 1, "default": 4 },
+        "image": { "type": "string" },
+        "resource_limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cpu": { "type": "string" },
+            "memory": { "type": "string" },
+            "gpu": { "type": "string" },
+            "timeout_seconds": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "network_policy": {
+          "type": "string",
+          "enum": ["disabled", "allowlist", "full"],
+          "default": "allowlist"
+        },
+        "cache": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "mount_path": { "type": "string" }
+          }
+        }
+      }
+    },
+    "OrchestratorSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "selection_policy": {
+          "type": "string",
+          "enum": ["best_score", "first_pass", "pareto"],
+          "default": "best_score"
+        },
+        "retry_policy": {
+          "type": "string",
+          "enum": ["on_fail", "on_low_score", "never"],
+          "default": "on_fail"
+        },
+        "max_total_attempts": { "type": "integer", "minimum": 1, "default": 100 },
+        "feedback_mode": {
+          "type": "string",
+          "enum": ["full_verifier_output", "summary_only", "redacted"],
+          "default": "summary_only"
+        }
+      }
+    },
+    "ReportingSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "output_dir": { "type": "string" },
+        "emit": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["json", "html", "junit", "csv", "trace"]
+          }
+        },
+        "store_agent_transcripts": { "type": "boolean", "default": true }
+      }
+    }
+  }
+}

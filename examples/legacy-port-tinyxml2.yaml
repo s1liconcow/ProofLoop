@@ -1,0 +1,147 @@
+schema_version: v1
+job:
+  id: tinyxml2-entity-port
+  name: Port tinyxml2 entity decoding path from C++ to Rust
+  environment:
+    dockerfile:
+      path: ./examples/legacy_tinyxml2/Dockerfile
+    artifacts:
+      - name: tinyxml2-src
+        path: ./third_party/tinyxml2
+        mount_to: ./third_party/tinyxml2
+        type: codebase
+      - name: xml-corpus
+        path: ./examples/legacy_tinyxml2/data
+        mount_to: ./examples/legacy_tinyxml2/data
+        type: dataset
+    env:
+      RUST_BACKTRACE: "1"
+    setup_commands:
+      - "cmake --version"
+      - "cargo --version"
+  target:
+    id: tinyxml2-entity-port-problem
+    title: tinyxml2 entity decoding compatibility + speed
+    domain: legacy-porting
+    description: |
+      Port the XML entity decoding and text normalization behavior from tinyxml2 (C++)
+      into a Rust module. Behavior must match tinyxml2 exactly on the supplied corpus,
+      and runtime should beat the baseline implementation.
+    goal: Preserve behavior exactly and reduce median decode time by at least 10%.
+    baseline:
+      description: Baseline measured from the current Rust reference implementation.
+      metrics:
+        runtime_ms_median: 42.0
+    constraints:
+      - Preserve byte-for-byte output on all verification corpus files.
+      - Keep public Rust API stable in src/lib.rs.
+      - No unsafe Rust.
+    input_contract:
+      format: files
+      examples:
+        - corpus_dir: examples/legacy_tinyxml2/data
+    output_contract:
+      format: patch
+      required_paths:
+        - src/
+        - Cargo.toml
+    verification:
+      type: command
+      command: >
+        bash examples/legacy_tinyxml2/verify.sh
+      timeout_seconds: 1200
+      pass_condition: >
+        tests_passed == true && behavioral_match_rate == 1.0
+        && runtime_ms_median <= baseline_runtime_ms_median * 0.90
+      collect_metrics:
+        - name: tests_passed
+          source: verifier
+          type: boolean
+        - name: behavioral_match_rate
+          source: verifier
+          type: number
+        - name: runtime_ms_median
+          source: verifier
+          type: number
+          unit: ms
+        - name: baseline_runtime_ms_median
+          source: verifier
+          type: number
+          unit: ms
+        - name: cpu_seconds
+          source: runner
+          type: number
+          unit: s
+    scoring:
+      mode: composite
+      builtins: [runtime, compute, agent_cost, pass_rate]
+      formula: |
+        0.50*norm(runtime_ms_median)
+        + 0.20*norm(cpu_seconds)
+        + 0.20*norm(agent_cost_usd)
+        + 0.10*norm(1.0 - behavioral_match_rate)
+      tie_breakers: ["behavioral_match_rate", "runtime_ms_median", "agent_cost_usd"]
+    prompt_template:
+      system: |
+        You are porting legacy C++ behavior to Rust with strict compatibility requirements.
+        First match behavior exactly. Then optimize hot paths.
+      developer: |
+        Read tinyxml2 entity decode logic from third_party/tinyxml2/tinyxml2.cpp.
+        Keep changes minimal and well-tested.
+providers:
+  - id: openai-main
+    type: openai
+    api_key_env: OPENAI_API_KEY
+    models:
+      - name: gpt-5
+        temperature: 0.2
+  - id: anthropic-main
+    type: anthropic
+    api_key_env: ANTHROPIC_API_KEY
+    models:
+      - name: claude-sonnet-4
+        temperature: 0.3
+agents:
+  - id: compatibility-porter
+    persona: Conservative porter focused on behavioral equivalence.
+    provider_id: anthropic-main
+    model: claude-sonnet-4
+    strategy: balanced
+    tooling: [shell, python, git]
+    max_iterations: 5
+  - id: perf-specialist
+    persona: Performance engineer focused on parser hot-path optimization.
+    provider_id: openai-main
+    model: gpt-5
+    strategy: explore
+    tooling: [shell, python, git]
+    max_iterations: 5
+  - id: adversarial-reviewer
+    persona: Skeptical reviewer trying to break assumptions with edge cases.
+    provider_id: openai-main
+    model: gpt-5
+    strategy: adversarial
+    tooling: [shell, python]
+    max_iterations: 3
+runner:
+  type: docker
+  ephemeral: true
+  parallelism: 3
+  resource_limits:
+    cpu: "6"
+    memory: "12Gi"
+    timeout_seconds: 2400
+  network_policy: disabled
+orchestrator:
+  selection_policy: pareto
+  retry_policy: on_fail
+  max_total_attempts: 36
+  feedback_mode: full_verifier_output
+reporting:
+  output_dir: ./runs/tinyxml2-entity-port
+  emit: [json, html, trace]
+  store_agent_transcripts: true
+metadata:
+  source_project: tinyxml2
+  source_repo: https://github.com/leethomason/tinyxml2
+  source_ref: 10.0.0

@@ -1,0 +1,109 @@
+schema_version: v1
+job:
+  id: legacy-porting-batch-01
+  name: Port legacy algorithm set from C++14 to Rust
+  environment:
+    base_image: rust:1.80
+    artifacts:
+      - name: legacy-source
+        path: ./legacy
+        mount_to: /legacy
+        type: codebase
+      - name: test-cases
+        path: ./tests
+        mount_to: /tests
+        type: dataset
+    setup_commands:
+      - "apt-get update && apt-get install -y cmake"
+  target:
+    id: dsa-port-set
+    selection: all
+    aggregate_scoring:
+      mode: composite
+      builtins: [pass_rate, runtime, agent_cost]
+      formula: "0.5*norm(1-pass_rate) + 0.4*norm(runtime_ms) + 0.1*norm(agent_cost_usd)"
+    problems:
+      - id: graph-shortest-path
+        title: Port Dijkstra implementation
+        domain: legacy-porting
+        goal: Match output and improve runtime by at least 10%.
+        input_contract:
+          format: files
+        output_contract:
+          format: patch
+          required_paths: ["rust/graph"]
+        verification:
+          type: command
+          command: "./scripts/verify_graph.sh"
+          pass_condition: "tests_passed == true && runtime_ms <= baseline_runtime_ms * 0.9"
+          collect_metrics:
+            - name: tests_passed
+              source: verifier
+              type: boolean
+            - name: runtime_ms
+              source: verifier
+              type: number
+            - name: baseline_runtime_ms
+              source: verifier
+              type: number
+        scoring:
+          builtins: [runtime, compute, agent_cost]
+      - id: heap-priority-queue
+        title: Port binary heap
+        domain: algorithms
+        goal: Preserve exact behavior on all provided test vectors.
+        input_contract:
+          format: files
+        output_contract:
+          format: patch
+          required_paths: ["rust/heap"]
+        verification:
+          type: test_suite
+          pass_condition: "tests_passed == true"
+          command: "cargo test --manifest-path rust/Cargo.toml"
+          collect_metrics:
+            - name: tests_passed
+              source: verifier
+              type: boolean
+providers:
+  - id: anthropic-main
+    type: anthropic
+    api_key_env: ANTHROPIC_API_KEY
+    models:
+      - name: claude-sonnet-4
+        temperature: 0.3
+  - id: local-ollama
+    type: ollama
+    endpoint: http://localhost:11434
+    models:
+      - name: qwen2.5-coder
+        temperature: 0.1
+agents:
+  - id: porter
+    persona: Careful language porter focused on semantic equivalence.
+    provider_id: anthropic-main
+    model: claude-sonnet-4
+    strategy: balanced
+    tooling: [shell, python, git]
+  - id: speed-tuner
+    persona: Performance-first systems engineer.
+    provider_id: local-ollama
+    model: qwen2.5-coder
+    strategy: explore
+    tooling: [shell, python]
+runner:
+  type: docker
+  ephemeral: true
+  parallelism: 6
+  resource_limits:
+    cpu: "8"
+    memory: "16Gi"
+  network_policy: disabled
+orchestrator:
+  selection_policy: pareto
+  retry_policy: on_low_score
+  max_total_attempts: 80
+  feedback_mode: full_verifier_output
+reporting:
+  output_dir: ./runs/legacy-porting-batch-01
+  emit: [json, csv]

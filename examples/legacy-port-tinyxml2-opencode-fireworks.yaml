@@ -1,0 +1,95 @@
+schema_version: v1
+job:
+  id: tinyxml2-entity-port-opencode
+  name: Port tinyxml2 entity decoding path via OpenCode + FireworksAI
+  environment:
+    dockerfile:
+      path: ./examples/legacy_tinyxml2/Dockerfile
+    artifacts:
+      - name: tinyxml2-src
+        path: ./third_party/tinyxml2
+        mount_to: ./third_party/tinyxml2
+        type: codebase
+      - name: xml-corpus
+        path: ./examples/legacy_tinyxml2/data
+        mount_to: ./examples/legacy_tinyxml2/data
+        type: dataset
+    env:
+      RUST_BACKTRACE: "1"
+  target:
+    id: tinyxml2-entity-port-problem
+    title: tinyxml2 entity decoding compatibility + speed
+    domain: legacy-porting
+    goal: Preserve behavior exactly and reduce median decode time by at least 10%.
+    constraints:
+      - Preserve byte-for-byte output on all verification corpus files.
+      - Keep public Rust API stable in src/lib.rs.
+      - No unsafe Rust.
+    input_contract:
+      format: files
+    output_contract:
+      format: patch
+      required_paths: [src/, Cargo.toml]
+    verification:
+      type: command
+      command: bash examples/legacy_tinyxml2/verify.sh
+      pass_condition: tests_passed == true && behavioral_match_rate == 1.0
+      collect_metrics:
+        - name: tests_passed
+          source: verifier
+          type: boolean
+        - name: behavioral_match_rate
+          source: verifier
+          type: number
+        - name: runtime_ms_median
+          source: verifier
+          type: number
+          unit: ms
+    scoring:
+      mode: composite
+      builtins: [runtime, compute, agent_cost]
+agents:
+  - id: opencode-fireworks-porter
+    persona: Port C++ behavior to Rust, prioritize exact compatibility first.
+    runtime:
+      type: opencode
+      executable: opencode
+      args: [run]
+      prompt_mode: stdin
+      timeout_seconds: 1800
+      env:
+        OPENCODE_PROVIDER: fireworks
+        FIREWORKS_BASE_URL: https://api.fireworks.ai/inference/v1
+        FIREWORKS_MODEL: accounts/fireworks/models/deepseek-v3p1
+  - id: codex-reviewer
+    persona: Validate edge cases and tighten implementation after initial port.
+    runtime:
+      type: codex
+      executable: codex
+      args: [exec]
+      prompt_mode: stdin
+      timeout_seconds: 900
+  - id: claude-refiner
+    persona: Refactor for readability while preserving exact behavior.
+    runtime:
+      type: claude_code
+      executable: claude
+      args: []
+      prompt_mode: stdin
+      timeout_seconds: 900
+runner:
+  type: docker
+  ephemeral: true
+  parallelism: 3
+  resource_limits:
+    cpu: "6"
+    memory: "12Gi"
+orchestrator:
+  selection_policy: best_score
+  retry_policy: on_fail
+  max_total_attempts: 18
+reporting:
+  output_dir: ./runs/tinyxml2-opencode-fireworks
+  emit: [json, trace]
+metadata:
+  note: Set FIREWORKS_API_KEY in your shell before running.

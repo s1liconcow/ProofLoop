@@ -1,0 +1,13 @@
+[package]
+name = "tinyxml2_port"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "tinyxml2_port"
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]
+pretty_assertions = "1"

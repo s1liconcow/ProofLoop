@@ -1,0 +1,22 @@
+[project]
+name = "auto-optimize-spec"
+version = "0.1.0"
+description = "Schema and typed models for multi-agent verifiable optimization jobs"
+requires-python = ">=3.10"
+dependencies = [
+  "pydantic>=2.7",
+  "jsonschema>=4.22",
+  "pyyaml>=6.0",
+  "docker>=7.1.0",
+]
+
+[project.scripts]
+auto-optimize-validate = "auto_optimize_spec.validate:main"
+auto-optimize-run = "auto_optimize_spec.run_job:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["auto_optimize_spec*"]
