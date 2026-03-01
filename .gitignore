@@ -28,6 +28,7 @@ runs/
 # Logs and temp
 *.log
 tmp/
+port_rust/target/
 
 # Editor/OS
 .DS_Store
