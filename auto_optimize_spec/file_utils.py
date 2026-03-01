@@ -4,12 +4,13 @@ import filecmp
 import json
 import os
 import re
+import shlex
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
-from auto_optimize_spec.models import OptimizationJob
+from auto_optimize_spec.models import EnvironmentInput, OptimizationJob, ProblemSpec
 
 PERSIST_SKIP_DIR_PREFIXES = (
     "runs",
@@ -54,6 +55,122 @@ def copy_artifact_into_root(
         return False
     mount_rel = mount_to.lstrip("/")
     dst = (dst_root / mount_rel).resolve()
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if src.is_dir():
+        shutil.copytree(src, dst, dirs_exist_ok=True)
+    else:
+        shutil.copy2(src, dst)
+    return True
+
+
+def build_problem_base_snapshot(
+    *,
+    job_file_dir: Path,
+    problem: ProblemSpec,
+    environment: EnvironmentInput | None,
+    dst_root: Path,
+    warnings: List[str],
+) -> None:
+    dst_root.mkdir(parents=True, exist_ok=True)
+
+    copied_anything = False
+    if environment and environment.artifacts:
+        for artifact in environment.artifacts:
+            copied = copy_artifact_into_root(
+                job_file_dir, artifact.path, artifact.mount_to, dst_root
+            )
+            if copied:
+                copied_anything = True
+            else:
+                warnings.append(
+                    f"Artifact not found: path={artifact.path} mount_to={artifact.mount_to}"
+                )
+    else:
+        # Backward-compatible fallback when no artifacts are declared.
+        copy_workspace_snapshot(Path.cwd(), dst_root)
+        copied_anything = True
+
+    # Ensure output contract paths exist in the workspace even if not mounted as artifacts.
+    for required in problem.output_contract.required_paths:
+        required_rel = required.lstrip("/").lstrip("./")
+        if not required_rel:
+            continue
+        required_path = dst_root / required_rel
+        if required.endswith("/") or not required_path.suffix:
+            required_path.mkdir(parents=True, exist_ok=True)
+        else:
+            required_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Ensure verifier-referenced files are available in minimal snapshots.
+    referenced_paths = _collect_verification_paths(problem)
+    for rel_path in referenced_paths:
+        copied = _copy_reference_path_into_root(
+            job_file_dir=job_file_dir,
+            rel_path=rel_path,
+            dst_root=dst_root,
+        )
+        if not copied:
+            warnings.append(f"Verifier path not found: {rel_path}")
+
+    if not copied_anything and not referenced_paths:
+        warnings.append(
+            f"No artifacts or verifier assets were mounted for problem={problem.id}; "
+            "agent workspace may be empty."
+        )
+
+
+def _collect_verification_paths(problem: ProblemSpec) -> List[str]:
+    out: List[str] = []
+    if problem.verification.script and problem.verification.script.path:
+        out.append(problem.verification.script.path)
+    if problem.verification.command:
+        out.extend(_extract_paths_from_command(problem.verification.command))
+    # Preserve order while deduplicating.
+    seen = set()
+    deduped: List[str] = []
+    for item in out:
+        if item not in seen:
+            seen.add(item)
+            deduped.append(item)
+    return deduped
+
+
+def _extract_paths_from_command(command: str) -> List[str]:
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.split()
+
+    candidates: List[str] = []
+    for idx, token in enumerate(tokens):
+        if token in {"bash", "sh", "python", "python3"} and idx + 1 < len(tokens):
+            maybe_path = tokens[idx + 1]
+            if not maybe_path.startswith("-"):
+                candidates.append(maybe_path)
+            continue
+
+        if token.startswith("./") or token.startswith("../"):
+            candidates.append(token)
+            continue
+
+        if "/" in token and not token.startswith("-"):
+            candidates.append(token)
+
+    return candidates
+
+
+def _copy_reference_path_into_root(
+    *, job_file_dir: Path, rel_path: str, dst_root: Path
+) -> bool:
+    rel_clean = rel_path.lstrip("./")
+    if not rel_clean or rel_path.startswith("/"):
+        return False
+
+    src = resolve_artifact_path(job_file_dir, rel_clean)
+    if not src.exists():
+        return False
+
+    dst = dst_root / rel_clean
     dst.parent.mkdir(parents=True, exist_ok=True)
     if src.is_dir():
         shutil.copytree(src, dst, dirs_exist_ok=True)

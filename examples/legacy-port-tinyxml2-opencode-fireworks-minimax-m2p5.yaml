@@ -7,8 +7,12 @@ job:
       path: ./examples/legacy_tinyxml2/Dockerfile
     artifacts:
       - name: tinyxml2-src
-        path: ./third_party/tinyxml2
-        mount_to: ./third_party/tinyxml2
+        path: ./examples/legacy_tinyxml2/vendor/tinyxml2
+        mount_to: ./examples/legacy_tinyxml2/vendor/tinyxml2
+        type: codebase
+      - name: rust-port-seed
+        path: ./examples/legacy_tinyxml2/port_rust
+        mount_to: ./examples/legacy_tinyxml2/port_rust
         type: codebase
       - name: xml-corpus
         path: ./examples/legacy_tinyxml2/data
@@ -21,13 +25,15 @@ job:
     goal: Preserve behavior exactly and reduce median decode time by at least 10%.
     constraints:
       - Preserve byte-for-byte output on all verification corpus files.
-      - Keep public Rust API stable in src/lib.rs.
+      - Keep public Rust API stable in examples/legacy_tinyxml2/port_rust/src/lib.rs.
       - No unsafe Rust.
     input_contract:
       format: files
     output_contract:
       format: patch
-      required_paths: [src/, Cargo.toml]
+      required_paths:
+        - examples/legacy_tinyxml2/port_rust/src/
+        - examples/legacy_tinyxml2/port_rust/Cargo.toml
     verification:
       type: command
       command: bash examples/legacy_tinyxml2/verify.sh

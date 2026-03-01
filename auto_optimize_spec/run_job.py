@@ -12,7 +12,7 @@ from typing import Any, Dict, List
 from auto_optimize_spec.agent_runtime import run_external_agent, run_internal_agent
 from auto_optimize_spec.evaluation import evaluate_pass_condition
 from auto_optimize_spec.file_utils import (
-    copy_artifact_into_root,
+    build_problem_base_snapshot,
     copy_workspace_snapshot,
     ensure_reporting_dir,
     persist_workspace,
@@ -68,18 +68,15 @@ def run_job(
         with tempfile.TemporaryDirectory(prefix=f"proofloop-{problem.id}-") as temp_dir:
             temp_root = Path(temp_dir)
             base_snapshot = temp_root / "base"
-            copy_workspace_snapshot(Path.cwd(), base_snapshot)
+            build_problem_base_snapshot(
+                job_file_dir=job_path.parent,
+                problem=problem,
+                environment=job.job.environment,
+                dst_root=base_snapshot,
+                warnings=run_summary["warnings"],
+            )
 
             if job.job.environment:
-                for artifact in job.job.environment.artifacts:
-                    copied = copy_artifact_into_root(
-                        job_path.parent, artifact.path, artifact.mount_to, base_snapshot
-                    )
-                    if not copied:
-                        run_summary["warnings"].append(
-                            f"Artifact not found: path={artifact.path} mount_to={artifact.mount_to}"
-                        )
-
                 for setup_cmd in job.job.environment.setup_commands:
                     subprocess.run(
                         ["bash", "-lc", setup_cmd],
