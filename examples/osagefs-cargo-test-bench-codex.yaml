@@ -1,0 +1,101 @@
+schema_version: v1
+job:
+  id: osagefs-cargo-test-bench
+  name: Optimize osagefs using cargo test and cargo bench verification
+  environment:
+    env:
+      RUST_BACKTRACE: "1"
+    setup_commands:
+      - "if [ ! -d osagefs/.git ]; then rm -rf osagefs && git clone --depth 1 https://github.com/s1liconcow/osagefs osagefs; fi"
+      - "cd osagefs && cargo fetch"
+  target:
+    id: osagefs-verification-problem
+    title: Improve osagefs while preserving behavior
+    domain: software-performance
+    description: |
+      Optimize osagefs implementation details while preserving correctness.
+      Verification is based on running cargo tests and cargo benchmarks.
+    goal: Keep all tests/benchmarks passing and reduce total verification time.
+    constraints:
+      - Preserve functional behavior as validated by cargo test.
+      - Keep changes in osagefs-focused Rust sources and manifests.
+      - Avoid introducing unsafe Rust unless strictly necessary.
+    default_prompt_appendix:
+      - "Primary codebase: osagefs/"
+      - "Verifier entrypoint: examples/osagefs/verify_cargo_test_bench.sh"
+      - "Run tests in repo root with: cargo test --workspace --all-targets"
+      - "Run benches in repo root with: cargo bench --workspace -- --noplot"
+    input_contract:
+      format: files
+    output_contract:
+      format: patch
+      required_paths:
+        - osagefs/
+    verification:
+      type: command
+      command: bash examples/osagefs/verify_cargo_test_bench.sh
+      timeout_seconds: 7200
+      pass_condition: tests_passed == true && bench_passed == true
+      collect_metrics:
+        - name: tests_passed
+          source: verifier
+          type: boolean
+        - name: bench_passed
+          source: verifier
+          type: boolean
+        - name: test_runtime_seconds
+          source: verifier
+          type: number
+          unit: s
+        - name: bench_runtime_seconds
+          source: verifier
+          type: number
+          unit: s
+        - name: total_runtime_seconds
+          source: verifier
+          type: number
+          unit: s
+    scoring:
+      mode: composite
+      builtins: [runtime, compute, agent_cost, pass_rate]
+      formula: |
+        0.60*norm(total_runtime_seconds)
+        + 0.20*norm(test_runtime_seconds)
+        + 0.10*norm(bench_runtime_seconds)
+        + 0.10*norm(agent_cost_usd)
+      tie_breakers: ["tests_passed", "bench_passed", "total_runtime_seconds"]
+    prompt_template:
+      system: |
+        You are optimizing a Rust filesystem project.
+        Preserve behavior first, then optimize hot paths and avoid churn.
+agents:
+  - id: codex-osagefs-optimizer
+    persona: Rust performance engineer focused on filesystem internals.
+    runtime:
+      type: codex
+      executable: codex
+      args: [exec, --skip-git-repo-check, --sandbox, workspace-write]
+      prompt_mode: stdin
+      timeout_seconds: 5400
+    strategy: balanced
+    tooling: [shell, git]
+    max_iterations: 4
+runner:
+  type: local
+  ephemeral: true
+  parallelism: 1
+  resource_limits:
+    timeout_seconds: 10800
+  network_policy: allowlist
+orchestrator:
+  selection_policy: best_score
+  retry_policy: on_fail
+  max_total_attempts: 8
+  feedback_mode: full_verifier_output
+reporting:
+  output_dir: ./runs/osagefs-cargo-test-bench
+  emit: [json, trace]
+  store_agent_transcripts: true
+metadata:
+  source_repo: https://github.com/s1liconcow/osagefs
+  note: Set PROOFLOOP_TEST_CMD / PROOFLOOP_BENCH_CMD to override defaults.

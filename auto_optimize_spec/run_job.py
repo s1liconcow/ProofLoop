@@ -78,12 +78,19 @@ def run_job(
 
             if job.job.environment:
                 for setup_cmd in job.job.environment.setup_commands:
-                    subprocess.run(
+                    setup_proc = subprocess.run(
                         ["bash", "-lc", setup_cmd],
                         cwd=str(base_snapshot),
                         check=False,
                         capture_output=True,
+                        text=True,
                     )
+                    if setup_proc.returncode != 0:
+                        run_summary["warnings"].append(
+                            "Setup command failed "
+                            f"(problem={problem.id}, exit={setup_proc.returncode}): {setup_cmd}\n"
+                            f"stderr: {setup_proc.stderr[:400]}"
+                        )
 
             problem_attempts: List[Dict[str, Any]] = []
             best: AttemptResult | None = None

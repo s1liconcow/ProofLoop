@@ -22,6 +22,7 @@ Schema and typed Python models for defining verifiable optimization jobs execute
 - `examples/problem-set.yaml`: problem set example
 - `examples/legacy-port-tinyxml2.yaml`: legacy C++ to Rust port example (tinyxml2)
 - `examples/legacy-port-tinyxml2-opencode-fireworks.yaml`: external runtime example (OpenCode + FireworksAI)
+- `examples/osagefs-cargo-test-bench-codex.yaml`: filesystem optimization example using `cargo test` + `cargo bench`
 - `docs/schema.md`: short schema guide
 - `docs/e2e-skeleton.md`: runner behavior and usage
 
@@ -33,4 +34,5 @@ source .venv/bin/activate
 pip install -e .
 proofloop-validate examples/single-problem.yaml
 proofloop-run examples/legacy-port-tinyxml2.yaml
+proofloop-run examples/osagefs-cargo-test-bench-codex.yaml
 ```

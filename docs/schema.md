@@ -35,6 +35,7 @@ Each problem includes:
 - `input_contract` and `output_contract`: how data enters/leaves.
 - `verification`: machine-checkable pass/fail + metrics.
 - `scoring` (optional): score function for ranking valid solutions.
+- `default_prompt_appendix` (optional): extra prompt lines appended to the runner's default per-problem instructions.
 
 ## Verification model
 

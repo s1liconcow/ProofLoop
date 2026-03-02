@@ -85,10 +85,6 @@ def build_problem_base_snapshot(
                 warnings.append(
                     f"Artifact not found: path={artifact.path} mount_to={artifact.mount_to}"
                 )
-    else:
-        # Backward-compatible fallback when no artifacts are declared.
-        copy_workspace_snapshot(Path.cwd(), dst_root)
-        copied_anything = True
 
     # Ensure output contract paths exist in the workspace even if not mounted as artifacts.
     for required in problem.output_contract.required_paths:

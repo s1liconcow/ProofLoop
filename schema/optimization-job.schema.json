@@ -115,6 +115,11 @@
           "type": "array",
           "items": { "type": "string" }
         },
+        "default_prompt_appendix": {
+          "type": "array",
+          "description": "Additional lines appended to the default agent prompt for this problem.",
+          "items": { "type": "string" }
+        },
         "input_contract": { "$ref": "#/$defs/InputContract" },
         "output_contract": { "$ref": "#/$defs/OutputContract" },
         "verification": { "$ref": "#/$defs/VerificationSpec" },

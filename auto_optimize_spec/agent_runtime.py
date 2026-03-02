@@ -39,22 +39,13 @@ def build_agent_prompt(
         "Workspace scope and permissions:",
         "- You have full access to the CURRENT WORKING DIRECTORY (the provided workspace snapshot).",
         "- Do NOT request or access absolute paths like /, /workspace, /tmp, or parent dirs via ..",
-        "- Use only repo-relative paths inside this workspace (e.g., examples/legacy_tinyxml2/vendor/tinyxml2, examples/legacy_tinyxml2/port_rust).",
+        "- Use only repo-relative paths inside this workspace.",
         "Constraints:",
     ]
     parts.extend(f"- {c}" for c in problem.constraints)
-    parts.append("Likely relevant files/paths:")
-    parts.append(
-        "- examples/legacy_tinyxml2/vendor/tinyxml2/tinyxml2.cpp (legacy C++ behavior reference)"
-    )
-    parts.append("- examples/legacy_tinyxml2/data/ (verification corpus)")
-    parts.append("- examples/legacy_tinyxml2/verify.sh (verifier entrypoint)")
-    parts.append(
-        "- examples/legacy_tinyxml2/port_rust/src/lib.rs (Rust port implementation)"
-    )
-    parts.append(
-        "- examples/legacy_tinyxml2/port_rust/Cargo.toml (Rust crate manifest)"
-    )
+    if problem.default_prompt_appendix:
+        parts.append("Default prompt appendix:")
+        parts.extend(f"- {line}" for line in problem.default_prompt_appendix)
     if problem.output_contract.required_paths:
         parts.append("Required output paths:")
         parts.extend(f"- {p}" for p in problem.output_contract.required_paths)

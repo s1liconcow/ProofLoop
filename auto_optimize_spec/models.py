@@ -103,6 +103,7 @@ class ProblemSpec(BaseModel):
     goal: str
     baseline: Optional[BaselineSpec] = None
     constraints: List[str] = Field(default_factory=list)
+    default_prompt_appendix: List[str] = Field(default_factory=list)
     input_contract: InputContract
     output_contract: OutputContract
     verification: VerificationSpec
