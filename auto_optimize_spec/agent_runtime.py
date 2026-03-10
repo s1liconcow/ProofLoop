@@ -124,6 +124,21 @@ def run_external_agent(
             live_output=live_output,
             start_time=start,
         )
+    elif runner.type == "sprite":
+        return run_external_agent_in_sprite(
+            agent=agent,
+            runtime_type=runtime.type,
+            cmd_parts=cmd_parts,
+            stdin_payload=stdin_payload,
+            workspace=workspace,
+            base_env=base_env,
+            runtime_env=runtime.env,
+            runner=runner,
+            stdout_log=stdout_log,
+            stderr_log=stderr_log,
+            live_output=live_output,
+            start_time=start,
+        )
 
     try:
         proc = subprocess.Popen(
@@ -427,4 +442,215 @@ def run_internal_agent(
         elapsed_seconds=0.0,
         stdout_log_path=None,
         stderr_log_path=None,
+    )
+
+
+def run_external_agent_in_sprite(
+    agent: AgentSpec,
+    runtime_type: str,
+    cmd_parts: List[str],
+    stdin_payload: str | None,
+    workspace: Path,
+    base_env: Dict[str, str],
+    runtime_env: Dict[str, str],
+    runner: RunnerSpec,
+    stdout_log: Path,
+    stderr_log: Path,
+    live_output: bool,
+    start_time: float,
+) -> AgentExecutionResult:
+    sprite_name = f"proofloop-{agent.id}-{int(time.time())}"
+    tar_path = workspace / ".." / f"{sprite_name}_in.tar.gz"
+    import tarfile
+
+    with tarfile.open(tar_path, "w:gz") as tar:
+        tar.add(workspace, arcname=".")
+
+    cmd_str = " ".join(shlex.quote(x) for x in cmd_parts)
+    if stdin_payload is not None:
+        cmd_str = (
+            f"cat >/tmp/proofloop_prompt.txt && {cmd_str} < /tmp/proofloop_prompt.txt"
+        )
+
+    env_vars = []
+    for k, v in {**base_env, **runtime_env}.items():
+        env_vars.append("-env")
+        env_vars.append(f"{k}={v}")
+
+    create_proc = subprocess.run(
+        ["sprite", "create", "-skip-console", sprite_name],
+        capture_output=True,
+        text=True,
+    )
+    if create_proc.returncode != 0:
+        return AgentExecutionResult(
+            runtime_type=runtime_type,
+            command=cmd_str,
+            summary=f"Failed to create sprite: {create_proc.stderr}",
+            input_tokens=0,
+            output_tokens=0,
+            exit_code=1,
+            stdout="",
+            stderr=create_proc.stderr,
+            elapsed_seconds=time.perf_counter() - start_time,
+            stdout_log_path=str(stdout_log),
+            stderr_log_path=str(stderr_log),
+        )
+
+    upload_proc = subprocess.run(
+        [
+            "sprite",
+            "exec",
+            "-s",
+            sprite_name,
+            "-file",
+            f"{tar_path}:/tmp/workspace.tar.gz",
+            "sh",
+            "-c",
+            "mkdir -p /workspace && tar -xzf /tmp/workspace.tar.gz -C /workspace",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if upload_proc.returncode != 0:
+        subprocess.run(
+            ["sprite", "destroy", sprite_name],
+            input="y\n",
+            text=True,
+            capture_output=True,
+        )
+        return AgentExecutionResult(
+            runtime_type=runtime_type,
+            command=cmd_str,
+            summary=f"Failed to upload to sprite: {upload_proc.stderr}",
+            input_tokens=0,
+            output_tokens=0,
+            exit_code=1,
+            stdout="",
+            stderr=upload_proc.stderr,
+            elapsed_seconds=time.perf_counter() - start_time,
+            stdout_log_path=str(stdout_log),
+            stderr_log_path=str(stderr_log),
+        )
+
+    stdout_lines: List[str] = []
+    stderr_lines: List[str] = []
+    exit_code = 1
+    timed_out = False
+
+    exec_cmd = (
+        ["sprite", "exec", "-s", sprite_name, "-dir", "/workspace"]
+        + env_vars
+        + ["bash", "-lc", cmd_str]
+    )
+
+    try:
+        proc = subprocess.Popen(
+            exec_cmd,
+            stdin=subprocess.PIPE if stdin_payload is not None else None,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+        )
+
+        def stream_pipe(pipe, chunks, log_path, stream_name):
+            with log_path.open("w", encoding="utf-8") as fh:
+                for line in iter(pipe.readline, ""):
+                    chunks.append(line)
+                    fh.write(line)
+                    fh.flush()
+                    if live_output:
+                        print(f"[agent:{agent.id}][{stream_name}] {line}", end="")
+            pipe.close()
+
+        stdout_thread = threading.Thread(
+            target=stream_pipe,
+            args=(proc.stdout, stdout_lines, stdout_log, "stdout"),
+            daemon=True,
+        )
+        stderr_thread = threading.Thread(
+            target=stream_pipe,
+            args=(proc.stderr, stderr_lines, stderr_log, "stderr"),
+            daemon=True,
+        )
+        stdout_thread.start()
+        stderr_thread.start()
+
+        if stdin_payload is not None and proc.stdin is not None:
+            proc.stdin.write(stdin_payload)
+            proc.stdin.close()
+
+        try:
+            proc.wait(timeout=agent.runtime.timeout_seconds if agent.runtime else 900)
+            exit_code = proc.returncode
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            proc.kill()
+            proc.wait()
+            exit_code = 124
+            stderr_lines.append("Agent runtime timed out.\n")
+            if live_output:
+                print(f"[agent:{agent.id}][stderr] Agent runtime timed out.")
+
+        stdout_thread.join()
+        stderr_thread.join()
+    except Exception as exc:
+        stderr_lines.append(f"Sprite agent execution failed: {exc}\n")
+        exit_code = 1
+
+    dl_proc = subprocess.run(
+        [
+            "sprite",
+            "exec",
+            "-s",
+            sprite_name,
+            "-dir",
+            "/workspace",
+            "sh",
+            "-c",
+            "tar -czf - . | base64",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if dl_proc.returncode == 0 and dl_proc.stdout:
+        import base64
+        import io
+
+        try:
+            decoded = base64.b64decode(dl_proc.stdout)
+            with tarfile.open(fileobj=io.BytesIO(decoded), mode="r:gz") as tar:
+                tar.extractall(path=workspace)
+        except Exception as e:
+            stderr_lines.append(f"\nFailed to extract results from sprite: {e}")
+            exit_code = 1 if exit_code == 0 else exit_code
+
+    subprocess.run(
+        ["sprite", "destroy", sprite_name], input="y\n", text=True, capture_output=True
+    )
+
+    elapsed = time.perf_counter() - start_time
+    stdout = "".join(stdout_lines)
+    stderr = "".join(stderr_lines).strip()
+    summary = (
+        stdout[:400] if stdout else f"{runtime_type} exited {exit_code}: {stderr[:220]}"
+    )
+
+    agent_metrics = extract_json_metrics(workspace / "tmp" / "agent_metrics.json")
+    input_tokens = int(agent_metrics.get("input_tokens", 0))
+    output_tokens = int(agent_metrics.get("output_tokens", 0))
+
+    return AgentExecutionResult(
+        runtime_type=runtime_type,
+        command=cmd_str,
+        summary=summary,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        exit_code=exit_code,
+        stdout=stdout,
+        stderr=stderr,
+        elapsed_seconds=elapsed,
+        stdout_log_path=str(stdout_log),
+        stderr_log_path=str(stderr_log),
     )

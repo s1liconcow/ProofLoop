@@ -173,9 +173,11 @@ class AgentSpec(BaseModel):
         "balanced"
     )
     max_iterations: int = 4
-    tooling: List[Literal["shell", "python", "git", "web", "simulator", "custom"]] = (
-        Field(default_factory=list)
-    )
+    tooling: List[
+        Literal[
+            "shell", "python", "git", "web", "simulator", "mcp_agent_mail", "custom"
+        ]
+    ] = Field(default_factory=list)
     prompt_overrides: Optional[PromptTemplate] = None
 
 
@@ -192,13 +194,19 @@ class RunnerCache(BaseModel):
 
 
 class RunnerSpec(BaseModel):
-    type: Literal["docker", "kubernetes", "local", "remote", "custom"]
+    type: Literal["docker", "kubernetes", "local", "remote", "sprite", "custom"]
     ephemeral: bool = True
     parallelism: int = 4
     image: Optional[str] = None
     resource_limits: Optional[RunnerResourceLimits] = None
     network_policy: Literal["disabled", "allowlist", "full"] = "allowlist"
     cache: Optional[RunnerCache] = None
+
+
+class RoundSpec(BaseModel):
+    agents: List[str] = Field(default_factory=list)
+    mode: Literal["competitive", "collaborative"] = "competitive"
+    execution: Literal["concurrent", "sequential"] = "concurrent"
 
 
 class OrchestratorSpec(BaseModel):
@@ -208,6 +216,8 @@ class OrchestratorSpec(BaseModel):
     feedback_mode: Literal["full_verifier_output", "summary_only", "redacted"] = (
         "summary_only"
     )
+    improvement_iterations: int = 1
+    rounds: List[RoundSpec] = Field(default_factory=list)
 
 
 class ReportingSpec(BaseModel):

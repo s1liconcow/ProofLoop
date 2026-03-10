@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_dir="${PROOFLOOP_OSAGEFS_DIR:-osagefs}"
 test_cmd="${PROOFLOOP_TEST_CMD:-cargo test --workspace --all-targets}"
-bench_cmd="${PROOFLOOP_BENCH_CMD:-cargo bench --workspace -- --noplot}"
+bench_cmd="${PROOFLOOP_BENCH_CMD:-cargo bench --workspace --benches -- --noplot}"
 
 mkdir -p tmp
 
@@ -23,13 +23,14 @@ run_step() {
   set +e
   (
     cd "$repo_dir"
-    eval "$cmd"
-  )
+    # Keep command output out of stdout so status parsing remains stable.
+    bash -lc "$cmd"
+  ) >&2
   local status=$?
   set -e
   end=$(date +%s)
   local elapsed=$((end - start))
-  echo "$status $elapsed"
+  printf '%s %s\n' "$status" "$elapsed"
 }
 
 read -r test_status test_elapsed < <(run_step "$test_cmd")

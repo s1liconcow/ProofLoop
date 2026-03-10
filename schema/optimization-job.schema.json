@@ -360,7 +360,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["shell", "python", "git", "web", "simulator", "custom"]
+            "enum": ["shell", "python", "git", "web", "simulator", "mcp_agent_mail", "custom"]
           }
         },
         "prompt_overrides": { "$ref": "#/$defs/PromptTemplate" }
@@ -436,7 +436,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["docker", "kubernetes", "local", "remote", "custom"]
+          "enum": ["docker", "kubernetes", "local", "remote", "sprite", "custom"]
         },
         "ephemeral": { "type": "boolean", "default": true },
         "parallelism": { "type": "integer", "minimum": 1, "default": 4 },
@@ -466,6 +466,26 @@
         }
       }
     },
+    "RoundSpec": {
+      "type": "object",
+      "required": ["agents", "mode"],
+      "additionalProperties": false,
+      "properties": {
+        "agents": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["competitive", "collaborative"]
+        },
+        "execution": {
+          "type": "string",
+          "enum": ["concurrent", "sequential"],
+          "default": "concurrent"
+        }
+      }
+    },
     "OrchestratorSpec": {
       "type": "object",
       "additionalProperties": false,
@@ -485,6 +505,16 @@
           "type": "string",
           "enum": ["full_verifier_output", "summary_only", "redacted"],
           "default": "summary_only"
+        },
+        "improvement_iterations": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "rounds": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RoundSpec" },
+          "default": []
         }
       }
     },

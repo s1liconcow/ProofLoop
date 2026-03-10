@@ -1,0 +1,91 @@
+{
+    "schema_version": "v1",
+    "job": {
+        "id": "sample-rounds-job",
+        "name": "Test Job with Sprite and Rounds",
+        "target": {
+            "id": "write-hello",
+            "title": "Write a python script",
+            "goal": "Write a simplest python file hello.py that prints 'Hello World!' to standard output.",
+            "input_contract": {
+                "format": "files"
+            },
+            "output_contract": {
+                "format": "patch",
+                "required_paths": [
+                    "hello.py"
+                ]
+            },
+            "verification": {
+                "type": "command",
+                "command": "python3 hello.py | grep -q 'Hello World!'",
+                "timeout_seconds": 10
+            },
+            "max_attempts_per_agent": 1
+        }
+    },
+    "agents": [
+        {
+            "id": "agent-one",
+            "persona": "You write python scripts quickly.",
+            "runtime": {
+                "type": "internal_mock",
+                "timeout_seconds": 30
+            },
+            "provider_id": "test-provider",
+            "model": "test-model",
+            "tooling": [
+                "shell",
+                "python"
+            ]
+        },
+        {
+            "id": "agent-two",
+            "persona": "You review python scripts.",
+            "runtime": {
+                "type": "internal_mock",
+                "timeout_seconds": 30
+            },
+            "provider_id": "test-provider",
+            "model": "test-model",
+            "tooling": [
+                "shell",
+                "mcp_agent_mail"
+            ]
+        }
+    ],
+    "providers": [
+        {
+            "id": "test-provider",
+            "type": "custom",
+            "models": [
+                {
+                    "name": "test-model"
+                }
+            ]
+        }
+    ],
+    "runner": {
+        "type": "sprite",
+        "ephemeral": true
+    },
+    "orchestrator": {
+        "improvement_iterations": 2,
+        "rounds": [
+            {
+                "agents": [
+                    "agent-one"
+                ],
+                "mode": "competitive",
+                "execution": "sequential"
+            },
+            {
+                "agents": [
+                    "agent-two"
+                ],
+                "mode": "collaborative",
+                "execution": "concurrent"
+            }
+        ]
+    }
+}

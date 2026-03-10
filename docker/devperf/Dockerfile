@@ -7,10 +7,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake ninja-build pkg-config make \
     clang lldb gdb strace ltrace valgrind linux-tools-common linux-tools-generic \
     python3 python3-pip python3-venv \
-    rustc cargo \
     hyperfine \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
+
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV CARGO_HOME=/usr/local/cargo
+ENV PATH=/usr/local/cargo/bin:${PATH}
+
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain stable \
+    && rustc --version \
+    && cargo --version
 
 # Install Node.js (required for Codex/Claude CLIs)
 RUN mkdir -p /etc/apt/keyrings \

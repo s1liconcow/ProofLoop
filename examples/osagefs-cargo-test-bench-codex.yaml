@@ -24,7 +24,7 @@ job:
       - "Primary codebase: osagefs/"
       - "Verifier entrypoint: examples/osagefs/verify_cargo_test_bench.sh"
       - "Run tests in repo root with: cargo test --workspace --all-targets"
-      - "Run benches in repo root with: cargo bench --workspace -- --noplot"
+      - "Run benches in repo root with: cargo bench --workspace --benches -- --noplot"
     input_contract:
       format: files
     output_contract:
