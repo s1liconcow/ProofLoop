@@ -194,6 +194,61 @@ def _evaluate_agent_attempt(
     return agent_best
 
 
+def _max_round_workers(job: OptimizationJob, round_agents: List[AgentSpec]) -> int:
+    if not round_agents:
+        return 1
+    return max(1, min(job.runner.parallelism, len(round_agents)))
+
+
+def _effective_round_execution(round_spec: RoundSpec) -> str:
+    if round_spec.mode == "collaborative":
+        return "sequential"
+    return round_spec.execution
+
+
+def _write_run_report(output_dir: Path, run_summary: Dict[str, Any]) -> None:
+    run_summary["updated_at"] = datetime.now(tz=timezone.utc).isoformat()
+    tmp_path = output_dir / "run-report.json.tmp"
+    report_path = output_dir / "run-report.json"
+    tmp_path.write_text(json.dumps(run_summary, indent=2), encoding="utf-8")
+    tmp_path.replace(report_path)
+
+
+def _round_summary(
+    *,
+    iteration_idx: int,
+    round_idx: int,
+    round_spec: RoundSpec,
+    round_results: List[AttemptResult],
+    best_overall: AttemptResult | None,
+) -> Dict[str, Any]:
+    best_in_round = max(round_results, key=lambda r: r.score) if round_results else None
+    return {
+        "iteration_index": iteration_idx,
+        "round_index": round_idx,
+        "mode": round_spec.mode,
+        "execution": round_spec.execution,
+        "effective_execution": _effective_round_execution(round_spec),
+        "agent_ids": list(round_spec.agents),
+        "attempts_completed": len(round_results),
+        "best_attempt_in_round": asdict(best_in_round) if best_in_round else None,
+        "best_attempt_overall": asdict(best_overall) if best_overall else None,
+        "scoreboard": [
+            {
+                "agent_id": result.agent_id,
+                "attempt_index": result.attempt_index,
+                "score": result.score,
+                "passed": result.verification.passed,
+                "agent_cost_usd": result.agent_cost_usd,
+                "verification_elapsed_seconds": result.verification.elapsed_seconds,
+                "metrics": result.verification.metrics,
+                "workspace": result.workspace,
+            }
+            for result in sorted(round_results, key=lambda r: r.score, reverse=True)
+        ],
+    }
+
+
 def run_job(
     job: OptimizationJob,
     job_path: Path,
@@ -208,10 +263,12 @@ def run_job(
         "job_id": job.job.id,
         "job_name": job.job.name,
         "schema_version": job.schema_version,
+        "status": "running",
         "started_at": datetime.now(tz=timezone.utc).isoformat(),
         "warnings": [],
         "problems": [],
     }
+    _write_run_report(output_dir, run_summary)
 
     iterations = job.orchestrator.improvement_iterations if job.orchestrator else 1
     rounds = (
@@ -258,8 +315,18 @@ def run_job(
                         )
 
             problem_attempts: List[Dict[str, Any]] = []
+            problem_rounds: List[Dict[str, Any]] = []
             best_overall: AttemptResult | None = None
             current_base_snapshot = initial_base_snapshot
+            problem_summary: Dict[str, Any] = {
+                "problem_id": problem.id,
+                "title": problem.title,
+                "attempts": problem_attempts,
+                "rounds": problem_rounds,
+                "best_attempt": None,
+            }
+            run_summary["problems"].append(problem_summary)
+            _write_run_report(output_dir, run_summary)
 
             for iter_idx in range(1, iterations + 1):
                 for round_idx, round_spec in enumerate(rounds, start=1):
@@ -272,17 +339,28 @@ def run_job(
                         continue
 
                     round_results: List[AttemptResult] = []
+                    effective_execution = _effective_round_execution(round_spec)
+                    round_base_snapshot = current_base_snapshot
 
-                    if round_spec.execution == "concurrent":
+                    if (
+                        round_spec.mode == "collaborative"
+                        and round_spec.execution == "concurrent"
+                    ):
+                        run_summary["warnings"].append(
+                            "Collaborative rounds execute sequentially to allow workspace handoff "
+                            f"(problem={problem.id}, iteration={iter_idx}, round={round_idx})."
+                        )
+
+                    if effective_execution == "concurrent":
                         with concurrent.futures.ThreadPoolExecutor(
-                            max_workers=len(round_agents) or 1
+                            max_workers=_max_round_workers(job, round_agents)
                         ) as executor:
                             future_to_agent = {
                                 executor.submit(
                                     _evaluate_agent_attempt,
                                     agent,
                                     problem,
-                                    current_base_snapshot,
+                                    round_base_snapshot,
                                     temp_root,
                                     job_env,
                                     output_dir,
@@ -307,7 +385,7 @@ def run_job(
                             res = _evaluate_agent_attempt(
                                 agent,
                                 problem,
-                                current_base_snapshot,
+                                round_base_snapshot,
                                 temp_root,
                                 job_env,
                                 output_dir,
@@ -321,6 +399,12 @@ def run_job(
                             )
                             if res:
                                 round_results.append(res)
+                                if (
+                                    round_spec.mode == "collaborative"
+                                    and res.workspace
+                                    and Path(res.workspace).exists()
+                                ):
+                                    round_base_snapshot = Path(res.workspace)
 
                     if round_results:
                         best_in_round = max(round_results, key=lambda r: r.score)
@@ -337,20 +421,27 @@ def run_job(
                             or best_in_round.score > best_overall.score
                         ):
                             best_overall = best_in_round
-
-            run_summary["problems"].append(
-                {
-                    "problem_id": problem.id,
-                    "title": problem.title,
-                    "attempts": problem_attempts,
-                    "best_attempt": asdict(best_overall) if best_overall else None,
-                }
+                    problem_rounds.append(
+                        _round_summary(
+                            iteration_idx=iter_idx,
+                            round_idx=round_idx,
+                            round_spec=round_spec,
+                            round_results=round_results,
+                            best_overall=best_overall,
+                        )
+                    )
+                    problem_summary["best_attempt"] = (
+                        asdict(best_overall) if best_overall else None
+                    )
+                    _write_run_report(output_dir, run_summary)
+            problem_summary["best_attempt"] = (
+                asdict(best_overall) if best_overall else None
             )
+            _write_run_report(output_dir, run_summary)
 
+    run_summary["status"] = "completed"
     run_summary["finished_at"] = datetime.now(tz=timezone.utc).isoformat()
-    (output_dir / "run-report.json").write_text(
-        json.dumps(run_summary, indent=2), encoding="utf-8"
-    )
+    _write_run_report(output_dir, run_summary)
     return run_summary
 
 

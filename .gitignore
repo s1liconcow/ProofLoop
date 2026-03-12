@@ -5,6 +5,10 @@ __pycache__/
 *.pyd
 *.so
 
+# Examples
+examples/kvstore/crate/target
+examples/kvstore/crate/Cargo.lock
+
 # Virtual environments
 venv/
 .venv/

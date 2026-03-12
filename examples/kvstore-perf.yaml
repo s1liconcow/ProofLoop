@@ -10,6 +10,7 @@ job:
         type: codebase
     env:
       CARGO_HOME: /workspace/.cargo
+      PROOFLOOP_VERIFY_LOCK_DIR: /proofloop-locks
     setup_commands:
       - "mkdir -p /workspace/.cargo"
       - "cd kvstore && cargo fetch"
@@ -26,7 +27,7 @@ job:
       - "Codebase: kvstore/"
       - "Verifier: examples/kvstore/verify.sh"
       - "Run tests with: cargo test"
-      - "Run benches with: cargo bench --benches -- --noplot"
+      - "Run benches with: cargo bench --bench bench -- --noplot"
     input_contract:
       format: files
     output_contract:
@@ -37,12 +38,15 @@ job:
       type: command
       command: bash examples/kvstore/verify.sh
       timeout_seconds: 600
-      pass_condition: tests_passed == true && bench_passed == true
+      pass_condition: tests_passed == true && bench_passed == true && bench_metrics_captured == true
       collect_metrics:
         - name: tests_passed
           source: verifier
           type: boolean
         - name: bench_passed
+          source: verifier
+          type: boolean
+        - name: bench_metrics_captured
           source: verifier
           type: boolean
         - name: test_runtime_seconds
@@ -57,10 +61,29 @@ job:
           source: verifier
           type: number
           unit: s
+        - name: bench_benchmark_count
+          source: verifier
+          type: number
+        - name: bench_set_1k_median_ns
+          source: verifier
+          type: number
+          unit: ns
+        - name: bench_get_1k_median_ns
+          source: verifier
+          type: number
+          unit: ns
+        - name: bench_mixed_rw_1k_median_ns
+          source: verifier
+          type: number
+          unit: ns
+        - name: bench_total_median_ns
+          source: verifier
+          type: number
+          unit: ns
     scoring:
       mode: minimize
-      formula: "norm(bench_runtime_seconds)"
-      tie_breakers: ["tests_passed", "bench_runtime_seconds"]
+      formula: "norm(bench_total_median_ns)"
+      tie_breakers: ["tests_passed", "bench_total_median_ns"]
     prompt_template:
       system: |
         You are optimizing a Rust persistent key-value store.
@@ -84,19 +107,52 @@ agents:
       timeout_seconds: 300
     strategy: balanced
     tooling: [shell, git]
-    max_iterations: 5
+    max_iterations: 3
+  - id: kvstore-storage-optimizer
+    persona: Rust storage engine specialist focused on write paths, file layout, and fsync efficiency.
+    runtime:
+      type: opencode
+      executable: /opt/opencode/bin/opencode
+      args: [run, --format, default, --model, fireworks-ai/accounts/fireworks/models/kimi-k2p5]
+      prompt_mode: arg
+      timeout_seconds: 300
+    strategy: explore
+    tooling: [shell, git]
+    max_iterations: 3
+  - id: kvstore-read-path-optimizer
+    persona: Rust systems engineer focused on read latency, indexing strategy, and lookup efficiency.
+    runtime:
+      type: opencode
+      executable: /opt/opencode/bin/opencode
+      args: [run, --format, default, --model, fireworks-ai/accounts/fireworks/models/kimi-k2p5]
+      prompt_mode: arg
+      timeout_seconds: 300
+    strategy: explore
+    tooling: [shell, git]
+    max_iterations: 3
 runner:
   type: docker
   image: proofloop/devperf:latest
   ephemeral: true
+  parallelism: 3
   mounts:
     - type: bind
       source: /home/david/.opencode
       target: /opt/opencode
+    - type: bind
+      source: /tmp/proofloop-kvstore-locks
+      target: /proofloop-locks
   resource_limits:
     timeout_seconds: 3600
 orchestrator:
   improvement_iterations: 10
+  rounds:
+    - agents:
+        - kvstore-optimizer
+        - kvstore-storage-optimizer
+        - kvstore-read-path-optimizer
+      mode: collaborative
+      execution: sequential
   selection_policy: best_score
   retry_policy: on_fail
   max_total_attempts: 20
