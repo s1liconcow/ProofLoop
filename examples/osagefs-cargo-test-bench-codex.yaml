@@ -68,20 +68,28 @@ job:
       system: |
         You are optimizing a Rust filesystem project.
         Preserve behavior first, then optimize hot paths and avoid churn.
+providers:
+  - id: fireworks-api
+    type: custom
+    api_key_env: FIREWORKS_API_KEY
+    endpoint: https://api.fireworks.ai/inference/v1/chat/completions
+    models:
+      - name: accounts/fireworks/models/kimi-k2p5
+        temperature: 0.2
 agents:
-  - id: codex-osagefs-optimizer
+  - id: fireworks-osagefs-optimizer
     persona: Rust performance engineer focused on filesystem internals.
     runtime:
-      type: codex
-      executable: codex
-      args: [exec, --skip-git-repo-check, --sandbox, workspace-write]
-      prompt_mode: stdin
+      type: opencode
+      executable: opencode
+      args: [run, --format, default, --model, fireworks-ai/accounts/fireworks/models/kimi-k2p5]
+      prompt_mode: arg
       timeout_seconds: 5400
     strategy: balanced
     tooling: [shell, git]
     max_iterations: 4
 runner:
-  type: local
+  type: sprite
   ephemeral: true
   parallelism: 1
   resource_limits:

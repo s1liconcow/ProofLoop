@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+CONFIG="$REPO_ROOT/examples/osagefs-cargo-test-bench-codex.yaml"
+OUTPUT_DIR="${1:-$REPO_ROOT/runs/osagefs-$(date +%Y%m%d-%H%M%S)}"
+
+cd "$REPO_ROOT"
+
+# Activate or create venv
+if [ ! -f venv/bin/activate ]; then
+  echo "Creating virtual environment..."
+  python3 -m venv venv
+fi
+source venv/bin/activate
+
+# Install if needed
+if ! command -v proofloop-run &>/dev/null; then
+  echo "Installing proofloop..."
+  pip install -e . -q
+fi
+
+echo "Config:     $CONFIG"
+echo "Output dir: $OUTPUT_DIR"
+echo ""
+
+proofloop-run "$CONFIG" --output-dir "$OUTPUT_DIR"

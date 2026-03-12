@@ -1,0 +1,109 @@
+schema_version: v1
+job:
+  id: rust-kvstore-perf
+  name: Continuously optimize a Rust persistent key-value store
+  environment:
+    artifacts:
+      - name: kvstore-crate
+        path: examples/kvstore/crate
+        mount_to: kvstore
+        type: codebase
+    env:
+      CARGO_HOME: /workspace/.cargo
+    setup_commands:
+      - "mkdir -p /workspace/.cargo"
+      - "cd kvstore && cargo fetch"
+  target:
+    id: kvstore-throughput
+    title: Improve write and read throughput of a Rust KV store
+    domain: software-performance
+    goal: Reduce benchmark runtime while keeping all tests passing.
+    constraints:
+      - Preserve the public API (KvStore::open, set, get, remove).
+      - All existing tests must pass.
+      - Avoid unsafe Rust unless strictly necessary.
+    default_prompt_appendix:
+      - "Codebase: kvstore/"
+      - "Verifier: examples/kvstore/verify.sh"
+      - "Run tests with: cargo test"
+      - "Run benches with: cargo bench --benches -- --noplot"
+    input_contract:
+      format: files
+    output_contract:
+      format: patch
+      required_paths:
+        - kvstore/
+    verification:
+      type: command
+      command: bash examples/kvstore/verify.sh
+      timeout_seconds: 600
+      pass_condition: tests_passed == true && bench_passed == true
+      collect_metrics:
+        - name: tests_passed
+          source: verifier
+          type: boolean
+        - name: bench_passed
+          source: verifier
+          type: boolean
+        - name: test_runtime_seconds
+          source: verifier
+          type: number
+          unit: s
+        - name: bench_runtime_seconds
+          source: verifier
+          type: number
+          unit: s
+        - name: total_runtime_seconds
+          source: verifier
+          type: number
+          unit: s
+    scoring:
+      mode: minimize
+      formula: "norm(bench_runtime_seconds)"
+      tie_breakers: ["tests_passed", "bench_runtime_seconds"]
+    prompt_template:
+      system: |
+        You are optimizing a Rust persistent key-value store.
+        Preserve the public API and all test behavior. Focus on throughput.
+providers:
+  - id: fireworks-api
+    type: custom
+    api_key_env: FIREWORKS_API_KEY
+    endpoint: https://api.fireworks.ai/inference/v1/chat/completions
+    models:
+      - name: accounts/fireworks/models/kimi-k2p5
+        temperature: 0.2
+agents:
+  - id: kvstore-optimizer
+    persona: Rust performance engineer focused on I/O and data structure efficiency.
+    runtime:
+      type: opencode
+      executable: /opt/opencode/bin/opencode
+      args: [run, --format, default, --model, fireworks-ai/accounts/fireworks/models/kimi-k2p5]
+      prompt_mode: arg
+      timeout_seconds: 300
+    strategy: balanced
+    tooling: [shell, git]
+    max_iterations: 5
+runner:
+  type: docker
+  image: proofloop/devperf:latest
+  ephemeral: true
+  mounts:
+    - type: bind
+      source: /home/david/.opencode
+      target: /opt/opencode
+  resource_limits:
+    timeout_seconds: 3600
+orchestrator:
+  improvement_iterations: 10
+  selection_policy: best_score
+  retry_policy: on_fail
+  max_total_attempts: 20
+  feedback_mode: full_verifier_output
+reporting:
+  output_dir: ./runs/rust-kvstore-perf
+  emit: [json, trace]
+  store_agent_transcripts: true
+metadata:
+  note: Set PROOFLOOP_TEST_CMD / PROOFLOOP_BENCH_CMD to override defaults.

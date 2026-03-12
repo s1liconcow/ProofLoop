@@ -193,6 +193,13 @@ class RunnerCache(BaseModel):
     mount_path: Optional[str] = None
 
 
+class RunnerMountSpec(BaseModel):
+    type: Literal["bind", "volume", "tmpfs"] = "bind"
+    source: str
+    target: str
+    read_only: bool = False
+
+
 class RunnerSpec(BaseModel):
     type: Literal["docker", "kubernetes", "local", "remote", "sprite", "custom"]
     ephemeral: bool = True
@@ -201,6 +208,7 @@ class RunnerSpec(BaseModel):
     resource_limits: Optional[RunnerResourceLimits] = None
     network_policy: Literal["disabled", "allowlist", "full"] = "allowlist"
     cache: Optional[RunnerCache] = None
+    mounts: List[RunnerMountSpec] = Field(default_factory=list)
 
 
 class RoundSpec(BaseModel):

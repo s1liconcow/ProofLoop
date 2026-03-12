@@ -320,12 +320,18 @@ def run_external_agent_in_docker(
     exit_code = 1
     timed_out = False
 
+    volumes = {str(workspace.resolve()): {"bind": "/workspace", "mode": "rw"}}
+    if runner.mounts:
+        for mount in runner.mounts:
+            mode = "ro" if mount.read_only else "rw"
+            volumes[mount.source] = {"bind": mount.target, "mode": mode}
+
     try:
         container = client.containers.run(
             image=image,
             command=["bash", "-lc", cmd_str],
             working_dir="/workspace",
-            volumes={str(workspace.resolve()): {"bind": "/workspace", "mode": "rw"}},
+            volumes=volumes,
             environment=env,
             user=f"{os.getuid()}:{os.getgid()}",
             network_disabled=(runner.network_policy == "disabled"),
